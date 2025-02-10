@@ -13,7 +13,7 @@ import subprocess
 import json
 
 # Set OpenAI API Key
-openai.api_key = "Your-Open-AI-API-KEY"
+openai.api_key = "Your-OpenAI-API-Key"
 
 def get_available_openai_model():
     """Detects the best available OpenAI model for the user's API key."""
@@ -59,7 +59,7 @@ def main():
 
 def check_open_ports(target):
     """Resolves the target domain to an IP address and performs a Shodan lookup."""
-    SHODAN_API_KEY = "Shodan-API-Key"
+    SHODAN_API_KEY = "Your-Shodan-API-Key"
     api = shodan.Shodan(SHODAN_API_KEY)
     
     try:
@@ -105,17 +105,17 @@ def find_versions_and_generate_wordlist(target):
         analysis_data = json.loads(result.stdout)
         versions = []
 
-        for tech in analysis_data.get("technologies", []):
-            tech_name = tech.get("name", "Unknown")
-            tech_version = tech.get("version", "")  # Ensure empty string if no version
-
+        for match in analysis_data.get("matches", []):  # Adjusting for "matches"
+            tech_name = match.get("app_name", "Unknown")
+            tech_version = match.get("version", "").strip()  # Some versions might be empty
+            
             if tech_version:
                 versions.append(f"{tech_name} {tech_version}")
             else:
-                versions.append(f"{tech_name}")  # Collect technology name even if version is missing
+                versions.append(f"{tech_name}")  # Include tech name even if no version found
 
         unique_versions = list(set(versions))
-        
+
         if unique_versions:
             print("\n[+] Detected Technologies and Versions:")
             for version in unique_versions:
@@ -150,4 +150,3 @@ def find_versions_and_generate_wordlist(target):
 
 if __name__ == "__main__":
     main()
-
