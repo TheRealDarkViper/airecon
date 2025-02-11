@@ -13,7 +13,7 @@ import subprocess
 import json
 
 # Set OpenAI API Key
-openai.api_key = "Your-OpenAI-API-Key"
+openai.api_key = "Your-Open-AI-API-Key"
 
 def get_available_openai_model():
     """Detects the best available OpenAI model for the user's API key."""
@@ -43,10 +43,52 @@ def perform_whois_lookup(target):
     except Exception as e:
         return f"WHOIS lookup failed: {e}"
 
+def search_github(target):
+    print("Searching GitHub for repositories related to the target...")
+    g = Github()
+    repos = g.search_repositories(query=target)
+    prompt = f"Generate GitHub Dorks for finding sensitive information related to {target} in the context of pentesting reconnaissance."
+    response = openai.chat.completions.create(
+        model=MODEL_NAME,
+        messages=[{"role": "system", "content": "You are an AI designed to assist in pentesting reconnaissance. Generate GitHub dorks that could reveal sensitive information about the target application."},
+                  {"role": "user", "content": prompt}]
+    )
+    dorks = response.choices[0].message.content.split('\n')
+    print("\n[+] AI-Suggested GitHub Dorks:")
+    for dork in dorks:
+        print(f"  - {dork}")
+        repo_urls = [repo.clone_url for repo in repos[:5]]
+    for url in repo_urls:
+        print(f"  - {url}")
+    return repo_urls
+
+def google_dorking(target):
+    print("Performing Google Dorking...")
+    prompt = f"Generate Google Dorks for reconnaissance on {target}, focusing on security vulnerabilities and pentesting insights."
+    response = openai.chat.completions.create(
+        model=MODEL_NAME,
+        messages=[{"role": "system", "content": "You are an AI designed to assist in pentesting reconnaissance. Generate effective Google Dorks to discover sensitive information, exposed directories, and potential vulnerabilities."},
+                  {"role": "user", "content": prompt}]
+    )
+    dorks = response.choices[0].message.content.split('\n')
+    print("\n[+] AI-Suggested Google Dorks:")
+    for dork in dorks:
+        print(f"  - {dork}")
+        print("Suggested Google Dork Queries:")
+    for dork in dorks:
+        print(f"  - {dork}")
+    return dorks
+
 def main():
     target_url = input("Enter the target website: ")
     print("[+] Performing WHOIS Lookup...")
     perform_whois_lookup(target_url)
+
+    print("[+] Performing Google Dorking...")
+    google_dorking(target_url)
+    
+    print("[+] Searching GitHub...")
+    search_github(target_url)
     
     print("[+] Checking Open Ports...")
     check_open_ports(target_url)
@@ -130,7 +172,7 @@ def find_versions_and_generate_wordlist(target):
         formatted_versions = "\n".join(unique_versions)
 
         # Use AI to generate a custom wordlist
-        prompt = f"Generate a custom wordlist for brute forcing directories or subdomains based on these detected technologies:\n{formatted_versions}"
+        prompt = f"Generate a custom wordlist for brute forcing directories or subdomains based on these detected technologies:\n{formatted_versions}. Output only the words themselves, one per line, with no extra descriptions or formatting. I am wanting to use this list for a tool such as gobuster or dirbbuster"
         response = openai.chat.completions.create(
             model=MODEL_NAME,
             messages=[{"role": "system", "content": "You are an AI designed for cybersecurity pentesting. Your goal is to analyze detected software versions from a website and create a list of potential directories and subdomains that could be useful in security testing."},
