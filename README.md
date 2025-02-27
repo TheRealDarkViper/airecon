@@ -30,6 +30,12 @@
 | **Multiple Domains**              | Provide any number of domains in one command.                     |
 
 ---
+## Installation
+**Clone the Repository**  
+   ```bash
+   git clone https://github.com/YourUser/AiRecon.git
+   cd AiRecon
+```
 
 ## Demo / Preview
 
