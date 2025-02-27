@@ -36,7 +36,21 @@
    git clone https://github.com/YourUser/AiRecon.git
    cd AiRecon
 ```
-
+**Python Virtual Environment**
+  ```bash
+  python3 -m venv venv
+source venv/bin/activate
+```
+**Install Dependencies**
+```bash
+pip install -r requirements.txt
+```
+**Install [webanalyze]**
+```bash
+go install github.com/rverton/webanalyze@latest
+```
+**Set API Keys**
+Make sure to enter you openApi key and Shodan Key into the script. 
 ## Demo / Preview
 
 <details>
