@@ -4,55 +4,45 @@ import json
 import shodan
 import whois
 import subprocess
-import openai  # or use transformers-based model
+from openai import OpenAI
+
+client = OpenAI(api_key="")  # or use transformers-based model
 from selenium import webdriver
 from github import Github
 
 # Set your OpenAI API Key
-openai.api_key = ""
 
 ################################
 # 1. Auto-Detect Available Model
 ################################
 def get_available_openai_model():
-    """Detects the best available OpenAI model for the user's API key."""
-    try:
-        available_models = [model.id for model in openai.models.list().data]
-        for preferred_model in ["gpt-4o"]:
-            if preferred_model in available_models:
-                return preferred_model
-    except Exception as e:
-        print(f"[!] Error retrieving OpenAI models: {e}")
-    return "gpt-3.5-turbo"  # Default to a widely available model
+    """Force usage of GPT-4o model with no fallback."""
+    return "gpt-4o"
 
 MODEL_NAME = get_available_openai_model()
 
 ########################################################
 # 2. WHOIS Lookup + AI Analysis
 ########################################################
+
 def perform_whois_lookup(target: str):
-    """Performs WHOIS lookup and sends data to OpenAI for analysis."""
+    """Performs WHOIS lookup and just prints the raw data, without sending it to AI."""
     try:
-        domain_info = whois.whois(target)
-        prompt = f"Analyze this WHOIS data and identify any interesting findings for pentesting reconnaissance: {domain_info}"
-        response = openai.ChatCompletion.create(
-            model=MODEL_NAME,
-            messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "You are an AI designed to assist in pentesting reconnaissance. "
-                        "Your task is to analyze WHOIS data to find useful insights for security testing."
-                    ),
-                },
-                {"role": "user", "content": prompt},
-            ],
-        )
-        print("\n[+] WHOIS Analysis:")
-        print(response.choices[0].message.content)
-        return domain_info
+        # Strip http:// or https:// from the target if present, plus any trailing slashes
+        target_domain = re.sub(r'^https?://', '', target).rstrip('/')
+        print(f"[DEBUG] WHOIS target domain: {target_domain}")
+
+        domain_info_dict = whois.whois(target_domain)
+
+        # Print the raw WHOIS data in JSON format
+        domain_info_json = json.dumps(domain_info_dict, default=str, indent=2)
+        print("WHOIS Raw Data:")
+        print(domain_info_json)
+
+        return domain_info_dict
     except Exception as e:
         return f"WHOIS lookup failed: {e}"
+
 
 ########################################################
 # 3. Google Dorking
@@ -64,19 +54,17 @@ def google_dorking(target: str):
         f"security vulnerabilities and pentesting insights. Output only the queries, one per line, no descriptions."
     )
     try:
-        response = openai.ChatCompletion.create(
-            model=MODEL_NAME,
-            messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "You are an AI designed to assist in pentesting reconnaissance. "
-                        "Generate effective Google Dorks to discover sensitive information and potential vulnerabilities."
-                    ),
-                },
-                {"role": "user", "content": prompt},
-            ],
-        )
+        response = client.chat.completions.create(model=MODEL_NAME,
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "You are an AI designed to assist in pentesting reconnaissance. "
+                    "Generate effective Google Dorks to discover sensitive information and potential vulnerabilities."
+                ),
+            },
+            {"role": "user", "content": prompt},
+        ])
         dorks = response.choices[0].message.content.split("\n")
         print("\n[+] AI-Suggested Google Dorks:")
         for dork in dorks:
@@ -96,19 +84,17 @@ def search_github(target: str):
         f"related to {target}. Output only the queries, one per line, no descriptions."
     )
     try:
-        response = openai.ChatCompletion.create(
-            model=MODEL_NAME,
-            messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "You are an AI designed for cybersecurity reconnaissance. "
-                        "Generate GitHub search queries for finding sensitive information."
-                    ),
-                },
-                {"role": "user", "content": prompt},
-            ],
-        )
+        response = client.chat.completions.create(model=MODEL_NAME,
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "You are an AI designed for cybersecurity reconnaissance. "
+                    "Generate GitHub search queries for finding sensitive information."
+                ),
+            },
+            {"role": "user", "content": prompt},
+        ])
         dorks = response.choices[0].message.content.split("\n")
         print("\n[+] AI-Suggested GitHub Search Queries:")
         for dork in dorks:
@@ -166,7 +152,7 @@ def find_versions_and_generate_wordlist(target: str):
     try:
         print("[+] Running Webanalyze to detect website technologies...")
         result = subprocess.run(
-            ["webanalyze", "-host", target, "-output", "json"],
+            ["/home/user/go/bin/webanalyze", "-host", target, "-output", "json"],
             capture_output=True,
             text=True
         )
@@ -201,20 +187,18 @@ def find_versions_and_generate_wordlist(target: str):
             "Output only the words themselves, one per line, with no extra descriptions. "
             "I am wanting to use this list for a tool such as gobuster or dirbbuster."
         )
-        response = openai.ChatCompletion.create(
-            model=MODEL_NAME,
-            messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "You are an AI designed for cybersecurity pentesting. "
-                        "Analyze the detected technologies and create a list "
-                        "of potential directories/subdomains."
-                    ),
-                },
-                {"role": "user", "content": prompt},
-            ],
-        )
+        response = client.chat.completions.create(model=MODEL_NAME,
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "You are an AI designed for cybersecurity pentesting. "
+                    "Analyze the detected technologies and create a list "
+                    "of potential directories/subdomains."
+                ),
+            },
+            {"role": "user", "content": prompt},
+        ])
         wordlist = response.choices[0].message.content.split("\n")
         with open("custom_wordlist.txt", "w") as f:
             for word in wordlist:
@@ -230,26 +214,110 @@ def find_versions_and_generate_wordlist(target: str):
 ########################################################
 # 8. Main
 ########################################################
+def print_usage():
+    """Displays usage information and available options."""
+    usage_text = """
+AiRecon - Automated Pentesting Reconnaissance Tool
+--------------------------------------------------
+Usage:
+  python script.py [options] <target1> <target2> ...
+
+Options:
+  -whois        Perform WHOIS lookup
+  -dorks        Perform Google Dorking & GitHub Dorks
+  -ports        Perform Shodan open port scan
+  -screenshot   Capture a screenshot of the target
+  -makelist     Run Webanalyze & generate custom wordlist
+  -all          Perform all available checks
+  -h, --help    Show this help message and exit
+
+Example:
+  python script.py -all example.com testsite.org
+  python script.py -whois -ports -screenshot example.com subdomain.test.com
+"""
+    print(usage_text)
+
 def main():
-    target_url = input("Enter the target website: ")
+    import sys
 
-    print("[+] Performing WHOIS Lookup...")
-    perform_whois_lookup(target_url)
+    if len(sys.argv) < 2:
+        print_usage()
+        sys.exit(1)
 
-    print("[+] Performing Google Dorking...")
-    google_dorking(target_url)
+    # Check for help
+    if '-h' in sys.argv or '--help' in sys.argv:
+        print_usage()
+        sys.exit(0)
 
-    print("[+] Generating GitHub Dorks...")
-    search_github(target_url)
+    # Separate flags from domains
+    flags = []
+    domains = []
 
-    print("[+] Checking Open Ports...")
-    check_open_ports(target_url)
+    # skip the script name itself, start from sys.argv[1]
+    for arg in sys.argv[1:]:
+        if arg.startswith('-'):
+            flags.append(arg)
+        else:
+            domains.append(arg)
 
-    print("[+] Capturing Screenshot...")
-    capture_screenshot(target_url)
+    # If no domains, print usage
+    if not domains:
+        print_usage()
+        sys.exit(1)
 
-    print("[+] Finding Versions and Generating Wordlist...")
-    find_versions_and_generate_wordlist(target_url)
+    # If user gave no flags, print usage
+    if not flags:
+        print_usage()
+        sys.exit(1)
+
+    # -all overrides everything
+    if '-all' in flags:
+        for domain in domains:
+            print(f"\n=== Running ALL checks for: {domain} ===")
+            print("[+] Performing WHOIS Lookup...")
+            perform_whois_lookup(domain)
+
+            print("[+] Performing Google Dorking...")
+            google_dorking(domain)
+
+            print("[+] Generating GitHub Dorks...")
+            search_github(domain)
+
+            print("[+] Checking Open Ports...")
+            check_open_ports(domain)
+
+            print("[+] Capturing Screenshot...")
+            capture_screenshot(domain)
+
+            print("[+] Finding Versions and Generating Wordlist...")
+            find_versions_and_generate_wordlist(domain)
+        sys.exit(0)
+
+    # Otherwise, perform actions per flag for each domain
+    for domain in domains:
+        print(f"\n=== Running checks for: {domain} ===")
+
+        if '-whois' in flags:
+            print("[+] Performing WHOIS Lookup...")
+            perform_whois_lookup(domain)
+
+        if '-dorks' in flags:
+            print("[+] Performing Google Dorking...")
+            google_dorking(domain)
+            print("[+] Generating GitHub Dorks...")
+            search_github(domain)
+
+        if '-ports' in flags:
+            print("[+] Checking Open Ports...")
+            check_open_ports(domain)
+
+        if '-screenshot' in flags:
+            print("[+] Capturing Screenshot...")
+            capture_screenshot(domain)
+
+        if '-makelist' in flags:
+            print("[+] Finding Versions and Generating Wordlist...")
+            find_versions_and_generate_wordlist(domain)
 
 ########################################################
 # 9. Script Entry Point
